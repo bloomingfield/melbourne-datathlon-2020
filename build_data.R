@@ -4,6 +4,11 @@ library(readxl)
 library(lubridate)
 library(data.table)
 library(XML)
+library(tidygeocoder)
+
+
+
+
 # ================================================================================
 # ================================================================================
 
@@ -39,27 +44,31 @@ meta.data = unnest(meta.data, cols=c(energy.distributors))
 # ================================================================================
 # easy stuff...
 years = 2015:2019
-
 year.list = list()
 for (i in 1:length(years)) {
   year.list[[i]] = read_csv(paste0('data/aemo_load/',years[i],'_nslp.csv'))
 }
 energy.data = bind_rows(year.list)
 
-energy.data = energy.data %>% mutate(total.nslp.load = rowSums(dplyr::select(., starts_with("Period"))))
-energy.data = energy.data %>% select(total.nslp.load, SettlementDate, ProfileArea)
 
 # not so easy stuff...
-data = xmlParse(file= 'data/aemo_load/mdmtm_mcotoner_876785315.xml')
-rootnode <- xmlRoot(data)
-csv.data = rootnode[[2]][[1]][[1]][[2]][[1]][[1]]
-csv.data = xmlValue(csv.data)
-res = read.csv(text=csv.data)
+weekly.files = list.files(path='data/aemo_load/', pattern='*.xml', full.names = T)
+weekly.list = list()
+for ( i in 1:length(weekly.files)) {
+  data = xmlParse(file= weekly.files[i])
+  rootnode <- xmlRoot(data)
+  csv.data = rootnode[[2]][[1]][[1]][[2]][[1]][[1]]
+  csv.data = xmlValue(csv.data)
+  weekly.list[[i]] = read.csv(text=csv.data)
+}
+weekly.res = bind_rows(weekly.list)
+energy.all = rbind(energy.data, weekly.res)
 
-table(res$ProfileName)
+energy.all = energy.all %>% filter(ProfileName == 'NSLP')
+energy.all = energy.all %>% mutate(total.nslp.load = rowSums(dplyr::select(., starts_with("Period"))))
+energy.all = energy.all %>% select(total.nslp.load, SettlementDate, ProfileArea)
 
-
-save(energy.data, file='output/energy.data.Rdata')
+saveRDS(energy.all, file='output/energy.data.Rdata')
 
 
 # energy.data.p = energy.data[1:300, ]
@@ -69,7 +78,7 @@ save(energy.data, file='output/energy.data.Rdata')
 # getting population data in a nice format
 # ================================================================================
 
-population = read_excel('data/abs/population.xls', 2, skip=6)
+population = read_excel('data/abs/population_cities.xls', 2, skip=6)
 # population = population %>% filter(...2 %in% cities.to.explore)
 columns = population$...2[3:112]
 rows = 2009:2019
@@ -79,7 +88,23 @@ colnames(population) = columns
 population = as_tibble(population)
 population$date = ymd(paste0(rows, '-6-30'))
 population = pivot_longer(population, columns, names_to='city', values_to='population')
-save(population, file='output/population.Rdata')
+population$population = as.numeric(population$population)
+population = population %>% filter(date == ymd('2019-06-30'))
+population$country = 'Australia'
+
+# ================================================================================
+
+cities = paste0(population$city, ', ', population$country)
+cities.list = list()
+for (i in 1:length(cities)) {
+  print(i)
+  cities.list[[i]] = geo(address = cities[i], method = 'osm', full_results =T)
+}
+cities.r = bind_rows(cities.list)
+cities.r= cities.r%>% relocate(display_name)
+
+regional.cities.location = population %>% bind_cols(cities.r)
+saveRDS(regional.cities.location, file='output/population_cities.RDS')
 
 # ================================================================================
 # getting weather data in nice format

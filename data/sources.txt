@@ -1,4 +1,6 @@
 https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/metering-data/load-profiles
+https://aemo.com.au/en/energy-systems/electricity/national-electricity-market-nem/data-nem/market-management-system-mms-data/generation-and-load
+https://aemo.com.au/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data
 https://www.abs.gov.au/AUSSTATS/abs@.nsf/Lookup/3218.0Main+Features12018-19?OpenDocument
 https://www.abs.gov.au/AUSSTATS/abs@.nsf/Lookup/5206.0Main+Features1Jun%202020?OpenDocument
 https://psl.noaa.gov/data/gridded/data.cpc.globaltemp.html
