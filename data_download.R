@@ -13,7 +13,7 @@ grab.grid$date = lubridate::ymd(paste0(grab.grid$year, '-', grab.grid$month, '-1
 grab.grid = grab.grid[grab.grid$date < lubridate::ymd('2020-09-17'), ]
 grab.grid = data.frame(grab.grid)
 
-destination = 'data/aemo_load/price_demand'
+destination = 'data/aemo/price_demand'
 
 for (i in 1:dim(grab.grid)[1]){
   row = grab.grid[i, ]

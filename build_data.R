@@ -5,103 +5,38 @@ library(lubridate)
 library(data.table)
 library(XML)
 library(tidygeocoder)
-
-
-
+source('build_data_func.R')
 
 # ================================================================================
+# Getting electricity data in nice format
 # ================================================================================
 
-cities.to.explore = c('Melbourne', 'Adelaide', 'Brisbane', 'Sydney', 'Canberra')
-cities.longitude = c(-37.81, -34.92, -27.47, -33.87, -35.27)
-cities.latitude = c(144.96, 138.62, 153.03, 151.19, 149.13)
-cities.energy.providers = list(c('CITIPOWER', 'VICAGL', 'UNITED'), c('UMPLP'), c('ENERGEX'), c('ENERGYAUST', 'INTEGRAL'), c('ACTEWAGL'))
-
-meta.data = tibble(cities = cities.to.explore, longitude = cities.longitude, latitude = cities.latitude, energy.distributors = cities.energy.providers)
-meta.data = unnest(meta.data, cols=c(energy.distributors))
-
-#ENERGEX - QLD Brisbane and surrounds - https://www.energex.com.au/about-us/company-information/our-network/the-south-east-queensland-electricity-network
-
-#ACTEWAGL - ACT https://www.aer.gov.au/networks-pipelines/service-providers-assets/evoenergy-electricity-distribution-network
-
-#CITIPOWER - VIC melbroune city - https://www.aer.gov.au/networks-pipelines/service-providers-assets/citipower
-#VICAGL - Melbourne north and south west VIC - https://www.aer.gov.au/networks-pipelines/service-providers-assets/jemena
-#UNITED - Melbroune south VIC - https://www.aer.gov.au/networks-pipelines/service-providers-assets/united-energy
-
-#ENERGYAUST - Sydney+newcastle NSW - https://electricitywizard.com.au/electricity/distributors/nsw/ausgrid/
-#INTEGRAL - Sydney other NSW - https://electricitywizard.com.au/electricity/distributors/nsw/ausgrid/
-
-#UMPLP - All SA - https://en.wikipedia.org/wiki/SA_Power_Networks
-
-#AURORA - tasmania - https://www.aer.gov.au/networks-pipelines/service-providers-assets/aurora-energy-electricity-distribution-network
-#COUNTRYENERGY - NSW - https://www.aer.gov.au/networks-pipelines/service-providers-assets/country-energy
-#ERGON1 - QLD other - https://www.ergon.com.au/network/help-and-support/about-us/who-we-are/service-regions-and-depot-map
-#POWERCOR - other VIC- https://www.greenwire.com.au/visitor/list-of-electricity-retailers-distributors-in-victoria/
-#TXU - AusNet- west VIC - https://www.greenwire.com.au/visitor/list-of-electricity-retailers-distributors-in-victoria/
-
-# ================================================================================
-# getting electricity data in a nice format
-# ================================================================================
-# easy stuff...
-years = 2015:2019
-year.list = list()
-for (i in 1:length(years)) {
-  year.list[[i]] = read_csv(paste0('data/aemo_load/',years[i],'_nslp.csv'))
-}
-energy.data = bind_rows(year.list)
-
-
-# not so easy stuff...
-weekly.files = list.files(path='data/aemo_load/', pattern='*.xml', full.names = T)
-weekly.list = list()
-for ( i in 1:length(weekly.files)) {
-  data = xmlParse(file= weekly.files[i])
-  rootnode <- xmlRoot(data)
-  csv.data = rootnode[[2]][[1]][[1]][[2]][[1]][[1]]
-  csv.data = xmlValue(csv.data)
-  weekly.list[[i]] = read.csv(text=csv.data)
-}
-weekly.res = bind_rows(weekly.list)
-energy.all = rbind(energy.data, weekly.res)
-
-energy.all = energy.all %>% filter(ProfileName == 'NSLP')
-energy.all = energy.all %>% mutate(total.nslp.load = rowSums(dplyr::select(., starts_with("Period"))))
-energy.all = energy.all %>% select(total.nslp.load, SettlementDate, ProfileArea)
-
-saveRDS(energy.all, file='output/energy.data.Rdata')
-
-
-# energy.data.p = energy.data[1:300, ]
-# plot(energy.data.p$SettlementDate, energy.data.p$total.nslp.load)
+electricity.files = list.files('data/aemo/price_demand', full.names = T)
+electricity.data = lapply(electricity.files, read_csv)
+electricity.data = bind_rows(electricity.data)
+saveRDS(electricity.data, file='output/energy.data.RDS')
 
 # ================================================================================
 # getting population data in a nice format
 # ================================================================================
 
-population = read_excel('data/abs/population_cities.xls', 2, skip=6)
+population = read_csv('data/abs/population_cities.csv')
 # population = population %>% filter(...2 %in% cities.to.explore)
-columns = population$...2[3:112]
-rows = 2009:2019
-population = population[3:112, 3:13]
-population = t(population)
-colnames(population) = columns
-population = as_tibble(population)
-population$date = ymd(paste0(rows, '-6-30'))
-population = pivot_longer(population, columns, names_to='city', values_to='population')
-population$population = as.numeric(population$population)
-population = population %>% filter(date == ymd('2019-06-30'))
+population = pivot_longer(population, where(is.numeric), names_to='year', values_to='population')
+population$year = ymd(paste0(population$year, '-06-30'))
+population = population %>% filter(year == ymd('2019-06-30'))
 population$country = 'Australia'
 
 # ================================================================================
 
-cities = paste0(population$city, ', ', population$country)
+cities = paste0(population$cities.geocode, ', ', population$country)
 cities.list = list()
 for (i in 1:length(cities)) {
   print(i)
   cities.list[[i]] = geo(address = cities[i], method = 'osm', full_results =T)
 }
 cities.r = bind_rows(cities.list)
-cities.r= cities.r%>% relocate(display_name)
+cities.r = cities.r %>% relocate(display_name)
 
 regional.cities.location = population %>% bind_cols(cities.r)
 saveRDS(regional.cities.location, file='output/population_cities.RDS')
@@ -109,40 +44,76 @@ saveRDS(regional.cities.location, file='output/population_cities.RDS')
 # ================================================================================
 # getting weather data in nice format
 # ================================================================================
+
 years.weather = 2015:2020
+australia.extent = extent(110, 160, -50, -10)
+
+locations.use = regional.cities.location
+locations.use = locations.use %>% drop_na()
+
+res = stack(paste0('data/noaa/tmin.2015.nc'))
+australia.crop = crop(res[[1]], australia.extent)
+australia.points = data.frame(rasterToPoints(australia.crop))
+australia.points$cell = cellFromXY(res[[1]], australia.points[, c(1,2)])
+
+locations.use$lat.closest = 0
+locations.use$long.closest = 0
+locations.use$closest.cell = 0
+for (i in 1:length(locations.use$year)) {
+  distance = ((australia.points[,1]-locations.use$long[i])^2+(australia.points[,2]-locations.use$lat[i])^2)^0.5
+  closest.point = australia.points[which.min(distance),]
+  locations.use$lat.closest[i] = closest.point[2]
+  locations.use$long.closest[i] = closest.point[1]
+  locations.use$closest.cell[i] = closest.point$cell
+}
+
+plot(australia.crop,axes = FALSE,legend=FALSE)
+points(locations.use[, c('long', 'lat')])
+points(locations.use[, c('long.closest', 'lat.closest')])
 
 temp.min.list = list()
 temp.max.list = list()
 precipitation.list = list()
-for (i in 1:length(years.weather[1:2])) {
+for (i in 1:length(years.weather)) {
   print(years.weather[i])
-  res = stack(paste0('data/noaa/tmin.',years.weather[i],'.nc'))
-  temp.min.list[[i]] = tibble::rownames_to_column(data.frame((t(raster::extract(res, meta.data[, c('latitude', 'longitude')])))), "date")
-  colnames(temp.min.list[[i]]) = c('date', meta.data$energy.distributors)
-  
-  res = stack(paste0('data/noaa/tmax.',years.weather[i],'.nc'))
-  temp.max.list[[i]] = tibble::rownames_to_column(data.frame(t(raster::extract(res, meta.data[, c('latitude', 'longitude')]))), "date")
-  colnames(temp.max.list[[i]]) = c('date', meta.data$energy.distributors)
-  
-  res = stack(paste0('data/noaa/precip.',years.weather[i],'.nc'))
-  precipitation.list[[i]] = tibble::rownames_to_column(data.frame(t(raster::extract(res, meta.data[, c('latitude', 'longitude')]))), "date")
-  colnames(precipitation.list[[i]]) = c('date', meta.data$energy.distributors)
+  temp.min.list[[i]] = extract.weather.from.raster(locations.use, year=years.weather[i], variable='tmin')
+  temp.max.list[[i]] = extract.weather.from.raster(locations.use, year=years.weather[i], variable='tmax')
+  precipitation.list[[i]] = extract.weather.from.raster(locations.use, year=years.weather[i], variable='precip')
 }
-temp.min = rbindlist(temp.min.list)
+temp.min = bind_rows(temp.min.list)
 temp.max = bind_rows(temp.max.list)
 precipitation = bind_rows(precipitation.list)
 
-temp.max = pivot_longer(temp.max, meta.data$energy.distributors, names_to='distributor', values_to='tmax')
-temp.min = pivot_longer(temp.min, meta.data$energy.distributors, names_to='distributor', values_to='tmin')
-precipitation = pivot_longer(precipitation, meta.data$energy.distributors, names_to='distributor', values_to='precip')
+temp.max = pivot_longer(temp.max, make.names(locations.use$cities.name), names_to='city', values_to='tmax')
+temp.min = pivot_longer(temp.min, make.names(locations.use$cities.name), names_to='city', values_to='tmin')
+precipitation = pivot_longer(precipitation, make.names(locations.use$cities.name), names_to='city', values_to='precip')
 
 weather = left_join(precipitation, temp.min)
 weather = left_join(weather, temp.max)
-save(weather, file='output/weather.Rdata')
+saveRDS(weather, file='output/weather.RDS')
 
 # ================================================================================
-# getting indicator data in nice format
+# getting state total population level data
 # ================================================================================
+state.vector = c('NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT')
 
+population.state = read_excel('data/abs/population_states.xls', 2)
+colnames(population.state) = make.names(colnames(population.state))
+population.state = population.state %>% select(
+  ...1,
+  Estimated.Resident.Population....Persons....New.South.Wales.., 
+  Estimated.Resident.Population....Persons....Victoria..,
+  Estimated.Resident.Population....Persons....South.Australia..,
+  Estimated.Resident.Population....Persons....Western.Australia..,
+  Estimated.Resident.Population....Persons....Tasmania..,
+  Estimated.Resident.Population....Persons....Northern.Territory..,
+  Estimated.Resident.Population....Persons....Australian.Capital.Territory..
+  )
+colnames(population.state) = c('date', state.vector)
+population.state = population.state[10:length(population.state$date), ]
+population.state = population.state %>% mutate_all(as.numeric)
+population.state$date = as.Date(population.state$date, origin="1900-01-01")-days(2)+months(1)
 
+population.state = pivot_longer(population.state, state.vector, names_to='state', values_to='population')
 
+saveRDS(population.state, file='output/population_state.RDS')
