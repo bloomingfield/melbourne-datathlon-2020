@@ -5,3 +5,5 @@ https://www.abs.gov.au/AUSSTATS/abs@.nsf/Lookup/3218.0Main+Features12018-19?Open
 https://www.abs.gov.au/AUSSTATS/abs@.nsf/Lookup/5206.0Main+Features1Jun%202020?OpenDocument
 https://psl.noaa.gov/data/gridded/data.cpc.globaltemp.html
 https://psl.noaa.gov/data/gridded/data.cpc.globalprecip.html
+
+http://www.whit.com.au/aemo-registered-participants/

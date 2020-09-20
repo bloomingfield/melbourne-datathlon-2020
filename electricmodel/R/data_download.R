@@ -28,6 +28,17 @@ download.demand.data = function(year.list = 2010:2020) {
   }
 }
 
-
+download.dispatch.data = function(date.start = ymd('2019-08-21'), date.end = ymd('2020-09-18')) {
+  base.link = "http://www.nemweb.com.au/REPORTS/ARCHIVE/Dispatch_SCADA/PUBLIC_DISPATCHSCADA_DATEME.zip"
+  
+  destination = 'data/aemo/dispatch'
+  
+  for (i in 0:(date.end-date.start)) {
+    date.me = date.start + days(i)
+    date.string = paste0(year(date.me),stringr::str_pad(month(date.me), 2, pad='0'), stringr::str_pad(day(date.me), 2, pad='0'))
+    try.link = gsub('DATEME', date.string, base.link, fixed=T)
+    download.file(try.link, paste0(destination, '/', date.string, '.zip'))
+  }
+}
   
 
