@@ -13,7 +13,7 @@ if (download.files == T) {
   process.ISD.weather.data(weather.spatial, max.linear.interp.gap = 6, max.seas.ma.gap = 720)
 }
 
-
+build.price.demand.data()
 
 # 
 # download.demand.data(year.list = 2010:2020) 
