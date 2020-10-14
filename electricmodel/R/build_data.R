@@ -1,5 +1,5 @@
 
-build.data = function() {
+build.price.demand.data = function() {
     
   # ================================================================================
   # Getting electricity data in nice format
@@ -13,8 +13,10 @@ build.data = function() {
   # ================================================================================
   # getting state total population level data
   # ================================================================================
-  state.vector = c('NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT')
+}
   
+build.population.data = function() {
+  state.vector = c('NSW', 'VIC', 'SA', 'WA', 'TAS', 'NT', 'ACT')
   population.state = read_excel('data/abs/population_states.xls', 2)
   colnames(population.state) = make.names(colnames(population.state))
   population.state = population.state %>% select(

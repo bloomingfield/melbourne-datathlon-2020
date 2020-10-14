@@ -43,42 +43,40 @@ build.ISD.weather.data = function(monthly.records = ( 30 * 24) * 0.25, years.of.
 # =============================================================================
 # =============================================================================
 
-untar.ISD.weather.data = function(weather.spatial) {
+download.ISD.weather.data = function(weather.spatial, years=2015:2020, cores=4) {
   
-  input.dir = 'data/isd-lite/raw/'
-  output.dir = 'data/isd-lite/untar/'
-  
-  file.names = list.files(path=input.dir)
-  
-  foreach(i=1:length(file.names)) %dopar% {
-    R.utils::gunzip(paste0(input.dir, file.names[i]), destname=paste0(output.dir, file.names[i], '.txt'), remove=F, overwrite=T)
-  }
-}
-
-# =============================================================================
-# =============================================================================
-
-process.ISD.weather.data = function(weather.spatial) {
-  
-  output.dir = 'data/isd-lite/untar/'
-  
-  weather.isd.data = foreach(i= 1:dim(weather.spatial)[1]) %dopar% {
+  for (i in 1:dim(weather.spatial)[1]) {
     print(i)
     row = weather.spatial[i, ]
-    read.files = list.files(path = output.dir, pattern = paste0(row$USAF, '-', row$WBAN), full.names = T)
-    data = read.files %>%  map_df(~read_table(., col_names=F))
-    colnames(data) = c('year', 'month', 'day', 'hour', 'air.temp', 'dew.point.temp', 'sea.level.pressure', 'wind.direction', 'wind.speed', 'sky.coverage.code', 'hourly.precip', 'six.hourly.precip')
-    data$station = row$STATION.NAME
-    data$lat = row$LAT
-    data$lon = row$LON
-    data$state = row$STE_NAME16
-    data$USAF = row$USAF
-    data$WBAN = row$WBAN
-    data
+    code = paste0(row$USAF, '-', row$WBAN)
+    data = importNOAA(code = code, year=years, hourly=T, n.cores=cores, path=paste0('data/isd-lite/output'))
   }
-  weather.isd.data = bind_rows(weather.isd.data)
-  saveRDS(weather.isd.data, file='data/isd-lite/raw.rds')
 }
 
 # =============================================================================
 # =============================================================================
+
+process.ISD.weather.data = function(weather.spatial, max.linear.interp.gap = 6, max.seas.ma.gap = 720) {
+  
+  for (i in 1:dim(weather.spatial)[1]) {
+    print(i)
+    row = weather.spatial[i, ]
+    code = paste0(row$USAF, '-', row$WBAN)
+    read.files = list.files('data/isd-lite/output', pattern=paste0(code,'*'), full.names = T)
+    weather.isd.data = bind_rows(lapply(read.files, readRDS))
+    
+    weather.isd.data = weather.isd.data %>% arrange(date) %>% mutate(id = code)
+    
+    # Now to interpolate between missing hours
+    weather.isd.data = weather.isd.data %>% group_by(id) %>%
+      mutate(air_temp_interp = na_interpolation(air_temp, maxgap = max.linear.interp.gap, option = 'linear')) %>% # maximum 6 hour gap
+      mutate(RH_interp = na_interpolation(RH, maxgap = max.linear.interp.gap, option = 'linear')) # maximum 6 hour gap
+    
+    # If still missing use a moving average over a longer period of time...
+    weather.isd.data = weather.isd.data %>% group_by(id) %>%
+      mutate(air_temp_interp2 = na_seasplit(air_temp_interp, maxgap = max.seas.ma.gap, find_frequency = TRUE, algorithm = "ma", k = 30, weighting='simple')) %>% # maximum 6 hour gap
+      mutate(RH_interp2 = na_seasplit(RH_interp, maxgap = max.seas.ma.gap, find_frequency = TRUE, algorithm = "ma", k = 30, weighting='simple')) # maximum 6 hour gap\
+    saveRDS(weather.isd.data, file=paste0('data/isd-lite/processed/',code,'.RDS'))
+  }
+}
+
