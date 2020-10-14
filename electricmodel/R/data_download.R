@@ -28,6 +28,8 @@ download.demand.data = function(year.list = 2010:2020) {
   }
 }
 
+# ================================================================================================================================================
+
 download.dispatch.data = function(date.start = ymd('2019-08-21'), date.end = ymd('2020-09-18')) {
   base.link = "http://www.nemweb.com.au/REPORTS/ARCHIVE/Dispatch_SCADA/PUBLIC_DISPATCHSCADA_DATEME.zip"
   
@@ -40,5 +42,25 @@ download.dispatch.data = function(date.start = ymd('2019-08-21'), date.end = ymd
     download.file(try.link, paste0(destination, '/', date.string, '.zip'))
   }
 }
-  
 
+# ================================================================================================================================================
+
+download.icao.data = function(weather.spatial, years=2015:2020) {
+  base.link = "https://www.ncei.noaa.gov/pub/data/noaa/isd-lite/YEAR/USAF-WBAN-YEAR.gz"
+  
+  destination = 'data/isd-lite/raw'
+  
+  for (year in years) {
+    foreach(i=1:length(weather.spatial$USAF)) %dopar% {
+      row = weather.spatial[i, ]
+      print(row)
+      USAF = row$USAF
+      WBAN = row$WBAN
+        
+      try.link = gsub('YEAR', year, base.link, fixed=T)
+      try.link = gsub('USAF', USAF, try.link, fixed=T)
+      try.link = gsub('WBAN', WBAN, try.link, fixed=T)
+      download.file(try.link, paste0(destination, '/', USAF, '-', WBAN,'-', year, '.gz'))
+    }
+  }
+}

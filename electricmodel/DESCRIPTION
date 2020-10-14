@@ -26,5 +26,6 @@ Depends:
   visdat,
   patchwork,
   ggplot2,
-  stringr
+  stringr,
+  foreach
   
