@@ -27,5 +27,6 @@ Depends:
   patchwork,
   ggplot2,
   stringr,
-  foreach
+  foreach,
+  worldmet
   

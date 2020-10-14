@@ -1,6 +1,6 @@
 
 
-download.demand.data = function(year.list = 2010:2020) {
+download.demand.data = function(year.list = 2010:2020, max.date = '2020-10-01') {
   base.link = "https://aemo.com.au/aemo/data/nem/priceanddemand/PRICE_AND_DEMAND_YEARMONTH_STATEID.csv"
   
   month.list = c('01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12')
@@ -10,7 +10,7 @@ download.demand.data = function(year.list = 2010:2020) {
   grab.grid = expand.grid(month=month.list, year = year.list, state=state.list)
   grab.grid$date = lubridate::ymd(paste0(grab.grid$year, '-', grab.grid$month, '-1'))
   
-  grab.grid = grab.grid[grab.grid$date < lubridate::ymd('2020-09-17'), ]
+  grab.grid = grab.grid[grab.grid$date < lubridate::ymd(max.date), ]
   grab.grid = data.frame(grab.grid)
   
   destination = 'data/aemo/price_demand'
