@@ -15,6 +15,9 @@ if (download.files == T) {
 
 build.price.demand.data()
 
+build.state.data(select.state = 'NSW')
+build.state.data(select.state = 'VIC')
+
 # 
 # download.demand.data(year.list = 2010:2020) 
 # build.data()
