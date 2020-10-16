@@ -48,6 +48,24 @@ change.in.use.over.time = function(train_data) {
   p
 }
 
+# ================================================================================
+extract.res.information = function(res) {
+  for (i in 1:length(res)) {
+    data = bind_rows(res[[i]]$res$xgboost_crossval$.metrics, res[[i]]$res$test$.metrics)
+    data$variables = paste0(res[[i]]$components, collapse= '\n')
+    if (i == 1) {
+      data.all = data
+      
+    } else {
+      data.all = bind_rows(data.all, data)
+    }
+  }
+  return(data.all)
+}
+
+
+
+
 
 
 

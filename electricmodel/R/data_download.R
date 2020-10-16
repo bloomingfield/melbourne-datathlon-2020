@@ -44,3 +44,14 @@ download.dispatch.data = function(date.start = ymd('2019-08-21'), date.end = ymd
 }
 
 # ================================================================================================================================================
+
+download.silo.data = function(years = 2015:2020) {
+  base.link = "https://s3-ap-southeast-2.amazonaws.com/silo-open-data/annual/radiation/YEAR.radiation.nc"
+  
+  destination = 'data/silo'
+  
+  for (year in years) {
+    try.link = gsub('YEAR', year, base.link, fixed=T)
+    download.file(try.link, paste0(destination, '/', basename(try.link)))
+  }
+}

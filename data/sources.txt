@@ -9,3 +9,7 @@ https://psl.noaa.gov/data/gridded/data.cpc.globalprecip.html
 http://www.whit.com.au/aemo-registered-participants/
 
 https://www.ncdc.noaa.gov/isd/data-access
+
+http://data.auscover.org.au/xwiki/bin/view/Product+pages/Product+User+Page+-+Solar+Radiation
+
+https://www.longpaddock.qld.gov.au/silo/gridded-data/

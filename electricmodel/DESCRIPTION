@@ -29,5 +29,6 @@ Depends:
   stringr,
   foreach,
   worldmet,
-  imputeTS
+  imputeTS,
+  suncalc
   

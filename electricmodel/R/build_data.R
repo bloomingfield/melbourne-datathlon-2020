@@ -125,5 +125,33 @@ build.noaa.weather.data = function() {
 # ================================================================================================================================================
 
 
+load.unemployment.data = function(file='data/abs/NSW_employment.xls') {
+  nsw.employment = read_xls(file, 2)
+  colnames(nsw.employment) = make.names(colnames(nsw.employment))
+  nsw.employment = nsw.employment %>% select(...1, Unemployment.rate....Persons.....48)
+  nsw.employment$...1 = as.Date(as.numeric(nsw.employment$...1), origin="1900-01-01")-days(2)+months(1) - days(1)
+  nsw.employment = nsw.employment %>% drop_na()
+  colnames(nsw.employment) = c('date', 'unemployment.rate')
+  nsw.employment$unemployment.rate = as.numeric(nsw.employment$unemployment.rate)
+  return(nsw.employment)
+}
 
-
+load.all.unemployment.data = function() {
+  nsw.employment = load.unemployment.data(file='data/abs/NSW_employment.xls')
+  vic.employment = load.unemployment.data(file='data/abs/VIC_employment.xls')
+  
+  underemployment = read_xls('data/abs/underemployment.xls', 3)
+  colnames(underemployment) = make.names(colnames(underemployment))
+  underemployment = underemployment %>% select(...1, Underemployment.rate..proportion.of.labour.force.....Persons......New.South.Wales.....164, Underemployment.rate..proportion.of.labour.force.....Persons......Victoria.....167)
+  underemployment$...1 = as.Date(as.numeric(underemployment$...1), origin="1900-01-01")-days(2)+months(1) - days(1)
+  underemployment = underemployment %>% drop_na()
+  colnames(underemployment) = c('date', 'underemployment.NSW', 'underemployment.VIC')
+  underemployment$underemployment.NSW = as.numeric(underemployment$underemployment.NSW)
+  underemployment$underemployment.VIC = as.numeric(underemployment$underemployment.VIC)
+  
+  colnames(vic.employment) = c('date', 'unemployment.rate.VIC')
+  colnames(nsw.employment) = c('date', 'unemployment.rate.NSW')
+  underemployment = left_join(underemployment, vic.employment)
+  underemployment = left_join(underemployment, nsw.employment)
+  return(underemployment)
+}

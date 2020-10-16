@@ -1,3 +1,24 @@
+create.rolling.origin.split = function(train_data) {
+  furniture_vfold = rolling_origin(train_data %>% nest(-month.year),  initial=24, assess=12, skip=11, cumulative=T)
+  
+  for (i in 1:dim(furniture_vfold)[1]) { # because rsample is shite
+    dd = furniture_vfold$splits[[i]]
+    dd$in_id = 1:dim(dd$data[dd$in_id, ] %>% unnest(data))[1]
+    dd$out_id = (max(dd$in_id)+1):(max(dd$in_id) + dim(dd$data[dd$out_id, ] %>% unnest(data))[1])
+    dd$data = dd$data %>% unnest(data)
+    furniture_vfold$splits[[i]] = dd
+  }
+  return(furniture_vfold)
+}
+
+create.train.test.split = function(train_data, test_data) {
+  tt_data = bind_rows(train_data, test_data)
+  final_split = rsample::initial_split(tt_data)
+  final_split$in_id = 1:dim(train_data)[1]
+  final_split$out_id = (dim(train_data)[1]+1):dim(tt_data)[1]
+  return(final_split)
+}
+
 
 
 fit.model = function(train_data, test_data, predict_data, recipe, ncores=3, tune=F) {
@@ -24,7 +45,7 @@ fit.model = function(train_data, test_data, predict_data, recipe, ncores=3, tune
     add_recipe(recipe) %>%
     add_model(xgb_model)
   
-  eletricity.sample <- rolling_origin(train_data, initial = 365*5+366*2, assess=365, skip=364)
+  eletricity.sample <- create.rolling.origin.split(train_data)
   if (tune) {
     xgboost_params <- parameters(
       trees(), learn_rate(),
@@ -61,16 +82,11 @@ fit.model = function(train_data, test_data, predict_data, recipe, ncores=3, tune
       metrics = metric.set
     )
   
-  tt_data = bind_rows(train_data, test_data)
-  final_split = rsample::initial_split(tt_data)
-  final_split$in_id = 1:dim(train_data)[1]
-  final_split$out_id = (dim(train_data)[1]+1):dim(tt_data)[1]
+  final_split = create.train.test.split(train_data, test_data)
   test_fit <- last_fit(final_workflow, final_split, metrics = metric.set)
   
-  ttp_data = bind_rows(tt_data, predict_data)
-  final_split = rsample::initial_split(ttp_data)
-  final_split$in_id = 1:dim(tt_data)[1]
-  final_split$out_id = (dim(tt_data)[1]+1):dim(ttp_data)[1]
+  tt_data = bind_rows(train_data, test_data)
+  final_split = create.train.test.split(tt_data, predict_data)
   predict_fit <- last_fit(final_workflow, final_split, metrics = metric.set)
   
   return(list(test_fit=test_fit, predict_fit=predict_fit, xgboost_crossval=xgboost_crossval))
