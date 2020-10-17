@@ -146,7 +146,8 @@ add.holidays.and.average = function(select.state = 'NSW', years.weather =2015:20
                        sunset = hour(sunset) + minute(sunset)/60)
   
   dd = dd %>% left_join(sun.times, by='date', suffix=c('', ''))
-  dd = dd  %>% mutate(solar.intensity = guess.solar.intensity(hour, solarNoon, sunrise, sunset))
+  dd = dd  %>% mutate(solar.intensity = guess.solar.intensity(hour, solarNoon, sunrise, sunset),
+                      across(starts_with("radiation"), ~.x*solar.intensity, .names='{.col}'))
   
   # dd <- dd %>% mutate(across(starts_with("radiation"), ~.x*solar.intensity))
   # ===========================================================================
