@@ -33,13 +33,13 @@ options(formatR.arrow=TRUE,width=90)
 
 \section{Aims}
 
-Comparing electricity usage patterns between years gives us an idea of how COVID-19 may have affected energy usage, but these changes in usage could also be due to other factors, such as differences in weather. Building a model based on previous years of electricity usage gives us a way to take these differences into account and compare the usage we'd expect given what we've observed previously and the usage that we are currently seeing during the COVID-19 pandemic. This will provide insights into how COVID-19 has affected the economy.
+Comparing electricity usage patterns between years gives us an idea of how COVID-19 may have affected energy usage, but these changes could also be due to other factors, such as differences in weather and domestic solar power generation. Building a model based on previous years of electricity usage data gives us a way to take these differences into account and compare expected usage with what we are currently seeing during the COVID-19 pandemic, and provide insights into how COVID-19 has affected the economy.
 
 \section{Data}
 
-To build a model we assembled a half hour electricity usage dataset that spanned from the start of 2015 to the 14th of October, 2020. Finding data with the required historical timeseries as well as being current to only the last couple of days was a challenge, but we were able to find temperature and solar radiation data and link these to the electricity usage data.Our electricity data was obtained from the Australian Energy Market Operator (AEMO) website, and provided \href{https://aemo.com.au/en/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data}{total electricity demand} for each state over half hour time periods. 
+To build a model we assembled an electricity usage dataset that spanned from the start of 2015 to the 14th of October, 2020. Finding data with the required historical timeseries as well as being current to only the last couple of days was a challenge, but we were able to find temperature and solar radiation data that met these requirements and link them together. Our electricity data was obtained from the Australian Energy Market Operator (AEMO) website, and provided \href{https://aemo.com.au/en/energy-systems/electricity/national-electricity-market-nem/data-nem/aggregated-data}{total electricity demand} for each state over half hour time periods. 
 
-Given we have only state level aggregates for electricity usage, we found that we obtained better results with temperature data across each state, in addition to data from the capital cities. The \href{https://www.ncdc.noaa.gov/isd}{Integrated Surface Database} was able to supply hourly temperature data from weather stations to achieve this through the \texttt{worldmet} R package, but these stations had large numbers of missing values. We picked stations that had on average one record every six hours, and then linearly interpolated gaps of at-most six hours. Larger gaps of at-most a month were filled by taking a moving average individually for each hour of the day, and stations with larger data gaps were excluded. To match the electricity data, we linearly interpolated our hourly temperature data back to half-hourly values. The coverage of the stations overlayed with population density for NSW and VIC are shown in Figure \ref{fig:weatherstations}.
+Given we have only state level aggregates for electricity usage, we found that we obtained better results with temperature data across each state, in addition to data from the capital cities. The \href{https://www.ncdc.noaa.gov/isd}{Integrated Surface Database} was able to supply hourly temperature data from weather stations to achieve this through the \texttt{worldmet} R package, but these stations had large numbers of missing values. We picked stations that had on average one record every six hours, and then linearly interpolated gaps of at-most six hours. Larger gaps of at-most a month were filled by taking a moving average individually for each hour of the day, and stations with larger data gaps were excluded. To match the electricity data, we linearly interpolated our hourly temperature data to half-hourly values. The coverage of the stations overlayed with population density for NSW and VIC are shown in Figure \ref{fig:weatherstations}.
 
 \begin{figure}[h]
 \label{fig:weatherstations}
@@ -48,7 +48,7 @@ Given we have only state level aggregates for electricity usage, we found that w
 \caption{Black dots are the location of weather stations used for building models predicting electricity usage.}
 \end{figure}
 
-We also obtained gridded daily solar radiation data from \href{https://www.longpaddock.qld.gov.au/silo/gridded-data/}{SILO}, and extracted the values at each of the weather stations to provide reasonable coverage of each state. To approximate solar radiation at a half-hourly level, we used times for sunrise, noon and sunset from the \texttt{suncalc} R package based on the centroids of the weather station coordinates to first create an estimate of solar intensity throughout the day using a piece-wise sine curve based on these values. We then multiplied the daily solar radiation values at each weather station by this solar intensity appromixation to obtain a half-hourly approximation. This ignores the impact of cloud cover, but data with a higher temporal resolution was not available.
+We also obtained gridded daily solar radiation data from \href{https://www.longpaddock.qld.gov.au/silo/gridded-data/}{SILO}, and extracted the values at each of the weather stations to provide reasonable coverage of each state. Incorporating solar radiation is important, as the influx of domestic solar demand during the day leads to decrease in usage around noon. We approximated solar radiation at a half-hourly level from the daily values using the times for sunrise, noon and sunset from the \texttt{suncalc} R package based on the centroids of the weather station coordinates for each state. This allowed us to create an estimate of solar intensity throughout the day using a piece-wise sine curve, which we then multiplied by the overall daily solar radiation values at each weather station to obtain our half-hourly approximation. This ignores the impact of cloud cover that might occur during some portions of the day, but we were unable to get access to solar radiation data with a higher temporal resolution.
 
 \FloatBarrier
 
@@ -58,38 +58,43 @@ We also obtained gridded daily solar radiation data from \href{https://www.longp
 \label{fig:model_performance}
 \centering
 \includegraphics[width=1\textwidth]{figures/model_performance.png}
-\caption{Model performance for VIC and NSW using different variable combinations. The three points are models tested on 2017, 2018 and 2019 data, but trained on all the preceding years.}
+\caption{Model performance for VIC and NSW using different variable combinations. The three points for each set of variables are models tested on 2017, 2018 and 2019 data, but trained on all the preceding years.}
 \end{figure}
 
 \begin{figure}[h]
 \label{fig:model_performance_raw}
 \centering
 \includegraphics[width=1\textwidth]{figures/model_performance_raw.png}
-\caption{Raw results of model trained on all predictors for NSW.}
+\caption{Raw results of model trained on all predictors for NSW over randomly selected days of the year in 2019.}
 \end{figure}
 
-We used \texttt{xgboost} with the \texttt{tidymodels} framework in R to predict electricity usage. We grouped our predictor variables into five sets, and fit these in turn to see how they impacted the quality of the model. Date variables included the time of day, month, day of the week and a boolean variable describing if the day is a weekday. For holidays, we used the \texttt{holiday\_aus} function from the \texttt{tsibble} package, and again used a boolean value to describe them. We also included a variable that described the number of days to the closest holiday, previous or future. To describe temperature, we used the half-hourly temperature values from each weather station in the state as a variable. For solar radiation, we included both our approximate half-hourly solar radiation values at each weather station, as well as the piece-wise sine curve based on timing of sunrise and sunset. We also computed daily and weekly rolling averages of temperature and solar radiation.
+We used \texttt{xgboost} with the \texttt{tidymodels} framework in R to predict electricity usage. XGBoost is a gradient boosting technique for building ensembles of decision trees, and has been applied quite successfully in a number of machine learning competitions. We considered also testing other methods, as well as hyper-parameter tuning, but ran out of time in this project.
 
-The change in model performance as these variables are added is shown in Figure \ref{fig:model_performance} using mean absolute percentage error. Simply using dates to predict electricity usage provides a reasonable model and the error is reduced by 20-30\% when all the variables are included, with the largest impact being when temperature is included. Figure \ref{fig:model_performance_raw} shows some comparisons between actual usage and predicted usage for NSW in 2019, and shows that the log of total demand does not vary greatly over the day, staying between 8.7 and 9.3. For further results in this document, 2019 predictions are based on the model trained with data from 2015-2018, and 2020 predictions use a model trained on data from 2015-2019. 
+We grouped our predictor variables into five sets, and fit these in turn to see how they impacted the quality of the model. Date variables included the time of day, month, day of the week and a boolean variable describing if the day is a weekday. For holidays, we used the \texttt{holiday\_aus} function from the \texttt{tsibble} package, and again used a boolean value to describe them. We also included a variable that described the number of days to the closest holiday, previous or future. To describe temperature, we used the half-hourly temperature values from each weather station in the state as a variable. For solar radiation, we included both our approximate half-hourly solar radiation values at each weather station, as well as the piece-wise sine curve based on timing of sunrise, noon and sunset. We also computed daily and weekly rolling averages of temperature and solar radiation.
+
+The change in model performance as these variables are added is shown in Figure \ref{fig:model_performance} using mean absolute percentage error. Simply using dates to predict electricity usage provides a reasonable model and the error is reduced by 20-30\% when all the variables are included, with the largest impact being the addition of temperature. Figure \ref{fig:model_performance_raw} shows some comparisons between actual usage and predicted usage for NSW in 2019, and shows that the log of total demand does not vary greatly over the day, staying between 8.7 and 9.3. It also highlights the model is not perfect, and performs much better on some days than others. For further results in this document, 2019 predictions are based on the model trained with data from 2015-2018, and 2020 predictions use a model trained on data from 2015-2019. 
 
 \FloatBarrier
 \section{Results}
 
 
-\begin{figure}[h]
+\begin{figure}[p]
 \label{fig:raw_demand}
 \centering
 \includegraphics[width=1\textwidth]{figures/raw_demand.png}
 \caption{Actual demand for 2019 and 2020 with the prediction for 2020 included as the dashed line, overlayed with approximate timing of major restrictions.}
 \end{figure}
 
-\begin{figure}[h]
+\begin{figure}[p]
 \label{fig:demand_minus_pred}
 \centering
 \includegraphics[width=1\textwidth]{figures/demand_minus_pred.png}
 \caption{Difference between predictions and actual demand for 2019 and 2020, overlayed with approximate timing of major restrictions.}
 \end{figure}
 
+Working with electricity usage data at the state level means we can only consider trends in overall usage. This is shown for 2019 and 2020 in Figure \ref{fig:raw_demand}, alongside what our model predicts for 2020. While there are some large differences in usage between years, the difference between our model and the actual usage for 2020 appears to be quite minor. This is similar as to what others report. In \href{https://www.energynetworks.com.au/news/energy-insider/2020-energy-insider/mapping-the-impact-of-covid-19-on-electricity-demand/}{Victoria} total usage fell only about 2\% overall during the first lockdown in April, but this masked a massive shift in where the energy was used. Namely, business usage fell, and residential usage increased. Unfortunately, we were not able to get access to any data for Australia that would have let us see if this trend has since reversed.
+
+If we have a look at the residuals, or the difference between actual usage and predicted for both 2019 and 2020, then we can more clearly compare expected versus observed usage (Figure \ref{fig:demand_minus_pred}). In 2019 the model appeared to under-estimate electricity usage, except in December and January where it over-estimated usage. This suggests the model might need an additional variable to describe the holidays people generally take over the Christmas period, and gives us an indication of what we might expect when comparing the residuals in 2019. In 2020, the residuals for VIC look quite similar to the year before, but there is a striking difference in NSW during the first major lockdown, where it looks like energy usage slightly decreased over what was expected by the model. This lockdown was nationwide and ran from around the middle of March to the middle of May. 
 
 \begin{figure}[h]
 \label{fig:unemployment}
@@ -98,5 +103,8 @@ The change in model performance as these variables are added is shown in Figure 
 \caption{Unemployment data from the Australian Bureau of Statistics overlayed with the timing of major restrictions. Dashed lines are for NSW, and solid are for Victoria.}
 \end{figure}
 
+It is difficult to draw conclusions as to whether this difference is significant enough to say that NSW was hit harder economically by this lockdown compared to Victoria, although finer scale data might be helpful in ascertaining this. In the quarter ending in June, state final demand fell by similar amounts in both states (8.6\% for NSW, 8.5\% for Victoria). Unemployment also changed similarly, as shown in Figure \ref{fig:unemployment}. While both states both entered lockdown with similar levels of underemployment, NSW had a lower unemployment rate. By the end of that first lockdown, unemployment levels were similar between the states, but Victoria's underemployment was slightly higher. This suggests both states were impacted similarly to VIC suffering slightly more, despite energy usage in NSW falling more. It is hard to compare though, as restrictions lifted in NSW much more quickly than VIC, and also didn't return in July.
+
+Since the introduction of stage 4 restrictions in Melbourne, underemployment began to rise again while in NSW it has continued to decrease and come to a plateau in the last two months. However, the unemployment rate in both states has stayed stubbornly stationary. In Victoria, energy usage also appears to have slightly decreased over what was expected since stage 4 restrictions were introduced, and in NSW there is a similar trend in the last month. It is uncertain if this decreasing trend in usage for recent months will hold, but these numbers highlight the risk of a "w" shaped recession, particularly if there is a third coronavirus outbreak in either NSW or VIC, and that the economy is still much weaker compared to at the start of the pandemic.
 
 \end{document}
